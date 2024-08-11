@@ -1,0 +1,16 @@
+[package]
+name = "mamamia"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+image = { version = "0.25.2", default-features = false, features = [
+    "jpeg",
+    "png",
+    "bmp",
+] }
+imageproc = "0.25.0"
+log = "0.4.22"
+rand = "0.8.5"
