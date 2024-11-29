@@ -1,3 +1,9 @@
 /target
 /output/*
 /bins/*
+/output_indexed/*
+.vscode/
+
+rooms.csv
+convert-to-indexed.bat
+Cargo.lock

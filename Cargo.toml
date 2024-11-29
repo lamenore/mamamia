@@ -6,11 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-image = { version = "0.25.2", default-features = false, features = [
-    "jpeg",
-    "png",
-    "bmp",
-] }
+anyhow = "1.0.93"
+image = { version = "0.25.5", default-features = false, features = ["png"] }
 imageproc = "0.25.0"
 log = "0.4.22"
+num_enum = "0.7.3"
 rand = "0.8.5"
+
+[profile.release-lto]
+inherits = "release"
+lto = true

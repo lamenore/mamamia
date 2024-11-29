@@ -3,57 +3,68 @@ use std::io::Read;
 use log::error;
 pub mod constants;
 pub mod shapes;
-pub mod types;
-use types::Room;
+mod types;
+use anyhow::anyhow;
+use types::room::Room;
 
-fn main() {
-    let my_path = std::path::Path::new("./bins");
-    if !my_path.exists() {
-        println!("Folder not found");
-        println!("{}", std::path::absolute(my_path).unwrap().display());
-        return;
+fn main() -> Result<(), anyhow::Error> {
+    // Parse command-line arguments
+    let args: Vec<String> = std::env::args().collect();
+
+    let should_save_images = args.contains(&"-i".to_string());
+    let should_save_slopes = args.contains(&"-s".to_string());
+    let should_save_breakables = args.contains(&"-b".to_string());
+
+    let directory_path = std::path::Path::new("./bins");
+    if !directory_path.exists() {
+        println!(
+            "Directory not found: {}",
+            std::path::absolute(directory_path).unwrap().display()
+        );
+        return Err(anyhow!("Directory not found"));
     }
 
-    // get all files in the folder
-    let entries = std::fs::read_dir(my_path).unwrap();
-    for entry in entries {
-        // error handling
-        if entry.is_err() {
-            error!("Error getting file: {:?}", entry.err());
-            continue;
-        }
-        let entry = entry.unwrap();
-        let path = entry.path();
+    // Retrieve all files in the directory
+    let directory_entries = std::fs::read_dir(directory_path)?;
+    for entry in directory_entries {
+        let entry = entry?;
+        let file_path = entry.path();
 
-        // is file a .room file?
-        if !path.is_file() || !path.exists() || path.extension().unwrap() != "room" {
+        // Check if the file is a .room file
+        if !file_path.is_file() || file_path.extension().and_then(|ext| ext.to_str()) != Some("room") {
             continue;
         }
 
-        // Get room id before .room extension
-        let room_id = path
+        // Extract room ID from file name
+        let room_id = file_path
             .file_stem()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .split("_Room_")
-            .last()
-            .unwrap();
-        println!("Room ID: {}", room_id);
+            .and_then(|stem| stem.to_str())
+            .and_then(|name| name.split("_Room_").last())
+            .unwrap_or_default();
 
-        // open file
-        let file = std::fs::File::open(path.clone());
-        if file.is_err() {
-            error!("Error opening file: {:?}", file.err());
+        // Open the file
+        let mut file = std::fs::File::open(&file_path)?;
+        let mut file_content = Vec::new();
+        if let Err(err) = file.read_to_end(&mut file_content) {
+            error!("Failed to read file: {}", err);
             continue;
         }
 
-        let mut file = file.unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
-
-        let mut room = Room::from_bytes(&bytes);
+        let mut room = Room::from_bytes(&file_content);
         room.room_id = room_id.to_string();
-        room.save_image();
+
+        if should_save_images {
+            //println!("Saving image for: {}", room_id);
+            room.save_image()?;
+        }
+        if should_save_slopes {
+            //println!("Saving slopes for: {}", room_id);
+            room.save_slopes();
+        }
+        if should_save_breakables {
+            //println!("Saving breakables for: {}", room_id);
+            room.save_breakables();
+        }
     }
+    Ok(())
 }

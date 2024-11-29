@@ -1,5 +1,8 @@
 pub const CELL_SIZE: u16 = 16;
+pub const TILE_SIZE: u16 = 16;
 
 pub const BTS_SLOPE_FLIP_MASK: u8 = 0b1100_0000;
 pub const BTS_SLOPE_YELLOW_MASK: u8 = 0b0010_0000;
 pub const BTS_SLOPE_TYPE_MASK: u8 = 0b0001_1111;
+pub const BTS_BREAKABLE_MASK_MASK: u8 = 0b0000_0011;
+
