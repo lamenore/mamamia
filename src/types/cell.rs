@@ -156,11 +156,28 @@ impl Cell {
     }
 
     pub fn get_breakable_mask(&self) -> BlockMask {
-        match self.bts & BTS_BREAKABLE_MASK_MASK {
+        let mask = match self.bts & BTS_BREAKABLE_MASK_MASK {
             0x0 => BlockMask::OneByOne,
             0x1 => BlockMask::TwoByOne,
             0x2 => BlockMask::OneByTwo,
             0x3 => BlockMask::TwoByTwo,
+            _ => BlockMask::OneByOne,
+        };
+
+        match self.block_type {
+            BlockType::Shot | BlockType::Crumble => {
+                let limit = if self.block_type == BlockType::Shot {
+                    0x8
+                } else {
+                    0xE
+                };
+                if self.bts < limit {
+                    mask
+                } else {
+                    BlockMask::OneByOne
+                }
+            }
+            BlockType::AirBomb | BlockType::AirShot | BlockType::Bomb => mask,
             _ => BlockMask::OneByOne,
         }
     }
