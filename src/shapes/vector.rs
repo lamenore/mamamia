@@ -41,9 +41,9 @@ impl Vector {
         false
     }
 
-    // return 1 if the start of self is the same as the end of other
-    // return -1 if the end of self is the same as the start of other
-    // return 0 if both meet at the same point
+    /// return 1 if the start of self is the same as the end of other.
+    /// return -1 if the end of self is the same as the start of other.
+    /// return 0 if both meet at the same point.
     pub fn end_points_meet(&self, other: &Vector) -> i8 {
         ((self.start == other.end) as i8) + -((self.end == other.start) as i8)
     }

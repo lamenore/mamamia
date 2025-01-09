@@ -13,6 +13,5 @@ log = "0.4.22"
 num_enum = "0.7.3"
 rand = "0.8.5"
 
-[profile.release-lto]
-inherits = "release"
-lto = true
+[profile.release]
+#lto = true

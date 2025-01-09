@@ -13,9 +13,10 @@ use crate::{
     constants::{CELL_SIZE, TILE_SIZE},
     shapes::{polygon::Polygon, vector::constants::SlopeVectors},
     types::{
+        cell::Flip,
         cell::{BlockType, Cell, SlopeType, TreatAsSlopeType},
         disjointed_set::DisjointedSet,
-        Flip,
+        disjointed_set::VectorDisjointedSet,
     },
 };
 
@@ -34,14 +35,14 @@ enum AreaIndex {
 }
 
 #[derive(Default)]
-struct RoomExportSize {
+struct RoomExportRect {
     x: u16,
     y: u16,
     width: u16,
     height: u16,
 }
 
-impl RoomExportSize {
+impl RoomExportRect {
     fn new() -> Self {
         Default::default()
     }
@@ -54,10 +55,54 @@ impl RoomExportSize {
     }
 }
 
+#[derive(Default, Clone, Debug)]
+struct GrowingRect {
+    x: u16,
+    y: u16,
+    width: u16,
+    height: u16,
+}
+
+impl GrowingRect {
+    fn new() -> Self {
+        Default::default()
+    }
+
+    fn with_cell(cell: &Cell) -> Self {
+        let mut growing_rect = GrowingRect::new();
+        growing_rect.update(cell.x, cell.y, 1, 1);
+        growing_rect
+    }
+
+    fn update(&mut self, x: u16, y: u16, width: u16, height: u16) {
+        self.x = x;
+        self.y = y;
+        self.width = width;
+        self.height = height;
+    }
+
+    /*************  ✨ Codeium Command 🌟  *************/
+    fn merge(&self, nb_index: &GrowingRect) -> GrowingRect {
+        let mut merged = self.clone();
+
+        merged.x = merged.x.min(nb_index.x);
+        merged.y = merged.y.min(nb_index.y);
+        merged.width = (self.x + self.width).max(nb_index.x + nb_index.width) - merged.x;
+        merged.height = (self.y + self.height).max(nb_index.y + nb_index.height) - merged.y;
+
+        merged
+    }
+    /******  aee7c7d9-198c-4469-91c5-2a828366efec  *******/
+
+    fn is_empty(&self) -> bool {
+        self.width == 0 || self.height == 0
+    }
+}
+
 #[derive(Default)]
 #[allow(dead_code)]
 pub struct Room {
-    pub room_id: String,
+    pub room_id: u32,
     area_index: AreaIndex,
     room_index: u8,
     map_x: u8,
@@ -67,40 +112,33 @@ pub struct Room {
     up_scroll: u8,
     down_scroll: u8,
     special_graphics_bitflag: u8,
-    door_out_pointer: u8,
+    pub door_out_pointer: u16,
     unk3: u8,
     unk4: u8,
     unk5: u8,
     unk6: u8,
-    unk7: u8,
     pub cells: Vec<Cell>,
-    export_size: RoomExportSize,
+    export_rect: RoomExportRect,
 }
 
 impl Room {
-    pub fn from_bytes(bytes: &[u8]) -> Self {
+    pub fn from_bytes(room_id: u32, total_size: usize, bytes: &[u8]) -> Self {
         // separate header at offset 0x00 and length 0x0E and room data at offset 0x0E non-inclusive
         let header = &bytes[0x00..=0x0E];
-        let mut room = Room::new_from_bytes(header);
+        let mut room = Room::new_from_bytes(room_id, header);
 
         // get room width and height
         let room_width = room.get_room_width_tiles();
         let room_height = room.get_room_height_tiles();
-        let total_size = (room_width * room_height) as usize;
 
         // [header][room_data][room_type_data][room_bts_data][unk_data]
         let raw_data = &bytes[0x0F..];
-        let room_type_data = &raw_data[0x00..total_size * 2];
-        let room_bts_data = &raw_data[(total_size * 2)..];
+        let room_type_data = &raw_data[0x00..total_size];
+        let room_bts_data = &raw_data[(total_size)..(total_size) + total_size/2];
 
         // get block type, flip, and that's it for now
         for (i, byte_pair) in room_type_data.chunks_exact(2).enumerate() {
             let room_width = room_width as usize;
-            let room_height = room_height as usize;
-
-            if i == (room_width * room_height) {
-                break;
-            }
 
             // byte_pair[1] 0000        00      00
             //              ^block type ^flip   ^??
@@ -116,13 +154,11 @@ impl Room {
         }
 
         // get bts
+        let mut j = 0;
         for (i, byte) in room_bts_data.iter().enumerate() {
-            if i == total_size {
-                break;
-            }
 
             room.cells[i].bts = *byte;
-
+            // 0x11FF
             if room.cells[i].block_type == BlockType::Slope {
                 let slope_type = room.cells[i].get_slope_type();
                 let slope_flip = room.cells[i].get_slope_flip();
@@ -133,22 +169,22 @@ impl Room {
                     Flip::None => {}
                     Flip::Horizontal => {
                         for vector in &mut room.cells[i].slope_vectors {
-                            vector.start.x = (-vector.start.x) + CELL_SIZE as i32 - 1;
-                            vector.end.x = (-vector.end.x) + CELL_SIZE as i32 - 1;
+                            vector.start.x = (-vector.start.x) + CELL_SIZE as i32;
+                            vector.end.x = (-vector.end.x) + CELL_SIZE as i32;
                         }
                     }
                     Flip::Vertical => {
                         for vector in &mut room.cells[i].slope_vectors {
-                            vector.start.y = (-vector.start.y) + CELL_SIZE as i32 - 1;
-                            vector.end.y = (-vector.end.y) + CELL_SIZE as i32 - 1;
+                            vector.start.y = (-vector.start.y) + CELL_SIZE as i32;
+                            vector.end.y = (-vector.end.y) + CELL_SIZE as i32;
                         }
                     }
                     Flip::Both => {
                         for vector in &mut room.cells[i].slope_vectors {
-                            vector.start.x = (-vector.start.x) + CELL_SIZE as i32 - 1;
-                            vector.end.x = (-vector.end.x) + CELL_SIZE as i32 - 1;
-                            vector.start.y = (-vector.start.y) + CELL_SIZE as i32 - 1;
-                            vector.end.y = (-vector.end.y) + CELL_SIZE as i32 - 1;
+                            vector.start.x = (-vector.start.x) + CELL_SIZE as i32;
+                            vector.end.x = (-vector.end.x) + CELL_SIZE as i32;
+                            vector.start.y = (-vector.start.y) + CELL_SIZE as i32;
+                            vector.end.y = (-vector.end.y) + CELL_SIZE as i32;
                         }
                     }
                 }
@@ -172,9 +208,9 @@ impl Room {
         room
     }
 
-    fn new_from_bytes(bytes: &[u8]) -> Self {
+    fn new_from_bytes(room_id: u32, bytes: &[u8]) -> Self {
         Room {
-            room_id: String::new(),
+            room_id,
             area_index: bytes[0x0].into(),
             room_index: bytes[0x1],
             map_x: bytes[0x2],
@@ -184,14 +220,13 @@ impl Room {
             up_scroll: bytes[0x6],
             down_scroll: bytes[0x7],
             special_graphics_bitflag: bytes[0x8],
-            door_out_pointer: bytes[0x9],
-            unk3: bytes[0x0A],
-            unk4: bytes[0x0B],
-            unk5: bytes[0x0C],
-            unk6: bytes[0x0D],
-            unk7: bytes[0x0E],
+            door_out_pointer: u16::from_le_bytes([bytes[0x9], bytes[0xA]]),
+            unk3: bytes[0x0B],
+            unk4: bytes[0x0C],
+            unk5: bytes[0x0D],
+            unk6: bytes[0x0E],
             cells: Vec::new(),
-            export_size: RoomExportSize::new(),
+            export_rect: RoomExportRect::new(),
         }
     }
 
@@ -264,7 +299,7 @@ impl Room {
         let width = (col_end - col_start) * CELL_SIZE;
         let height = (row_end - row_start) * CELL_SIZE;
 
-        self.export_size.update(x, y, width, height);
+        self.export_rect.update(x, y, width, height);
     }
 
     pub fn get_room_width_tiles(&self) -> u16 {
@@ -282,6 +317,7 @@ impl Room {
         for i in 0..(room_width * room_height) {
             if self.cells[i].block_type != BlockType::Slope
                 || self.cells[i].get_slope_type() == SlopeType::Square
+                || self.cells[i].treat_as_slope != TreatAsSlopeType::Solid
             {
                 continue;
             }
@@ -307,38 +343,53 @@ impl Room {
                 }
             }
 
-            if let Some(right) = neighbors.right {
-                if self.cells[right].is_square() {
-                    self.cells[right].treat_as_slope = TreatAsSlopeType::SlopeLeft;
-                    let right_neighbors = get_4neighbors(right, room_width, room_height);
-                    match right_neighbors {
-                        CellNeighbors {
-                            left: _,
-                            right: _,
-                            up: Some(u),
-                            down: Some(d),
-                        } if self.cells[u].is_square() && self.cells[d].is_square() => {
-                            self.cells[right].treat_as_slope = TreatAsSlopeType::Solid;
+            let Some(right) = neighbors.right else {
+                continue;
+            };
+            if !self.cells[right].is_square() {
+                continue;
+            }
+
+            self.cells[right].treat_as_slope = TreatAsSlopeType::Solid;
+            let right_neighbors = get_4neighbors(right, room_width, room_height);
+            match right_neighbors {
+                CellNeighbors {
+                    left: _,
+                    right: _,
+                    up: Some(u),
+                    down: Some(d),
+                } if self.cells[u].is_square() && self.cells[d].is_square() => {
+                    self.cells[right].treat_as_slope = TreatAsSlopeType::Solid;
+                }
+                CellNeighbors {
+                    left: Some(l),
+                    right: Some(r),
+                    up: _,
+                    down: _,
+                } => {
+                    if self.cells[l].block_type == BlockType::Slope
+                        && self.cells[r].block_type == BlockType::Slope
+                    {
+                        self.cells[right].treat_as_slope = TreatAsSlopeType::SlopeLeft;
+                    }
+
+                    if l == i {
+                        if self.cells[r].block_type == BlockType::Air {
+                            self.cells[right].treat_as_slope = TreatAsSlopeType::SlopeProtectPosX;
+                        } else {
+                            self.cells[right].treat_as_slope = TreatAsSlopeType::SlopeRight;
                         }
-                        CellNeighbors {
-                            left: Some(l),
-                            right: Some(r),
-                            up: _,
-                            down: _,
-                        } => {
-                            if l == i {
-                                self.cells[right].treat_as_slope =
-                                    TreatAsSlopeType::SlopeProtectPosX;
-                            } else if r == i {
-                                self.cells[right].treat_as_slope =
-                                    TreatAsSlopeType::SlopeProtectNegX;
-                            } else {
-                                self.cells[right].treat_as_slope = TreatAsSlopeType::Solid;
-                            }
+                    }
+
+                    if r == i {
+                        if self.cells[l].block_type == BlockType::Air {
+                            self.cells[right].treat_as_slope = TreatAsSlopeType::SlopeProtectNegX;
+                        } else {
+                            self.cells[right].treat_as_slope = TreatAsSlopeType::SlopeLeft;
                         }
-                        _ => {}
                     }
                 }
+                _ => {}
             }
         }
     }
@@ -347,8 +398,8 @@ impl Room {
         let room_width = self.get_room_width_tiles() as usize;
         let room_height = self.get_room_height_tiles() as usize;
 
-        let mut disjointed_set = DisjointedSet::new(room_width * room_height);
-        let mut has_apparent_slope = false;
+        let mut disjointed_set = VectorDisjointedSet::new(room_width * room_height);
+        let mut has_apparent_slope: bool = false;
 
         for cell_i in 0..self.cells.len() {
             if self.cells[cell_i].block_type != BlockType::Slope {
@@ -395,15 +446,15 @@ impl Room {
                             disjointed_set.init(test_index, k);
                         }
 
-                        let tp = disjointed_set.find(test_index, k);
+                        let testp = disjointed_set.find(test_index, k);
 
-                        let cv = self.cells[cell_parent.cell].slope_vectors[cell_parent.vector];
-                        let tv = self.cells[tp.cell].slope_vectors[tp.vector];
+                        let cellv = self.cells[cell_parent.cell].slope_vectors[cell_parent.vector];
+                        let testv = self.cells[testp.cell].slope_vectors[testp.vector];
 
-                        if !cv.compare_direction(&tv) {
+                        if !cellv.compare_direction(&testv) {
                             continue;
                         }
-                        let ends_meet = cv.end_points_meet(&tv);
+                        let ends_meet = cellv.end_points_meet(&testv);
 
                         let mut new_parent = cell_parent;
                         if ends_meet != 0 {
@@ -412,19 +463,19 @@ impl Room {
                         if ends_meet == -1 {
                             if new_parent == cell_parent {
                                 self.cells[cell_parent.cell].slope_vectors[cell_parent.vector]
-                                    .end = tv.end;
+                                    .end = testv.end;
                             } else {
                                 self.cells[new_parent.cell].slope_vectors[new_parent.vector]
-                                    .start = cv.start;
+                                    .start = cellv.start;
                             }
                         }
                         if ends_meet == 1 {
                             if new_parent == cell_parent {
                                 self.cells[cell_parent.cell].slope_vectors[cell_parent.vector]
-                                    .start = tv.start;
+                                    .start = testv.start;
                             } else {
                                 self.cells[new_parent.cell].slope_vectors[new_parent.vector].end =
-                                    cv.end;
+                                    cellv.end;
                             }
                         }
                     }
@@ -448,6 +499,18 @@ impl Room {
             has_apparent_slope = true;
         }
 
+        let slope_not_vflip = slope_info
+            .iter()
+            .filter(|i| i.1.get_slope_flip() != Flip::Vertical)
+            .map(|(i, _)| *i)
+            .collect::<Vec<_>>();
+
+        let slope_vflip = slope_info
+            .iter()
+            .filter(|i| i.1.get_slope_flip() == Flip::Vertical)
+            .map(|(i, _)| *i)
+            .collect::<Vec<_>>();
+
         let slope_filename = format!("output/{}/{}_slopes.txt", self.room_id, self.room_id);
         let slope_path = path::Path::new(&slope_filename);
         if has_apparent_slope {
@@ -458,30 +521,42 @@ impl Room {
                 )
             });
 
-            for (i, _) in slope_info {
-                for vector_i in 0..self.cells[i].slope_vectors.len() {
-                    let start = self.cells[i].slope_vectors[vector_i].start;
-                    let end = self.cells[i].slope_vectors[vector_i].end;
-
-                    // Map start and end to the export size space
-                    let mapped_start_x = start.x - self.export_size.x as i32;
-                    let mapped_start_y = start.y - self.export_size.y as i32;
-                    let mapped_end_x = end.x - self.export_size.x as i32;
-                    let mapped_end_y = end.y - self.export_size.y as i32;
-
-                    file.write_all(
-                        format!(
-                            "spawn_slope({}*2, {}*2, {}*2, {}*2)\n",
-                            mapped_start_x, mapped_start_y, mapped_end_x, mapped_end_y
-                        )
-                        .as_bytes(),
-                    )
-                    .unwrap_or_else(|_| {
+            for (slopes, label) in &[
+                (slope_not_vflip, "// Ground slopes"),
+                (slope_vflip, "// Vertical slopes"),
+            ] {
+                if !slopes.is_empty() {
+                    writeln!(file, "{}", label).unwrap_or_else(|_| {
                         panic!(
-                            "Failed to write to file output/{}/{}_slopes.txt",
+                            "Failed to write slopes label to file output/{}/{}_slopes.txt",
                             self.room_id, self.room_id
                         )
                     });
+                }
+
+                let vflip_str = if *label == "// Vertical slopes" {
+                    ", 0, 1, 1"
+                } else {
+                    ""
+                };
+
+                for &i in slopes {
+                    for vector in &self.cells[i].slope_vectors {
+                        let start = vector.start;
+                        let end = vector.end;
+
+                        writeln!(
+                            file,
+                            "spawn_slope({}*2, {}*2, {}*2, {}*2{})",
+                            start.x, start.y, end.x, end.y, vflip_str
+                        )
+                        .unwrap_or_else(|_| {
+                            panic!(
+                                "Failed to write slope to file output/{}/{}_slopes.txt",
+                                self.room_id, self.room_id
+                            )
+                        });
+                    }
                 }
             }
         } else if slope_path.exists() {
@@ -550,7 +625,9 @@ impl Room {
                         draw_polygon_mut(&mut img, &shape.points, color);
                     }
                     BlockType::Solid => match cell.treat_as_slope {
-                        TreatAsSlopeType::Solid => {
+                        TreatAsSlopeType::Solid
+                        | TreatAsSlopeType::SlopeRight
+                        | TreatAsSlopeType::SlopeLeft => {
                             draw_filled_rect_mut(
                                 &mut img,
                                 Rect::at((cell.x * CELL_SIZE).into(), (cell.y * CELL_SIZE).into())
@@ -558,7 +635,6 @@ impl Room {
                                 color,
                             );
                         }
-                        TreatAsSlopeType::SlopeRight | TreatAsSlopeType::SlopeLeft => {}
                         TreatAsSlopeType::SlopeProtectNegX => {
                             draw_filled_rect_mut(
                                 &mut img,
@@ -595,7 +671,7 @@ impl Room {
                 }
             });
 
-        // remove every red pixel which has one transparent horizontal neighboring pixel, repeat 10 times
+        // remove every yellow and magenta pixel which has one transparent horizontal neighboring pixel, repeat 10 times
         for _ in 0..10 {
             let img_copy = img.clone();
             for y in 0..img.height() {
@@ -638,14 +714,14 @@ impl Room {
         }
 
         // crop the image to the correct export size
-        let mut img = image::imageops::crop(
-            &mut img,
-            (self.export_size.x) as u32,
-            (self.export_size.y) as u32,
-            (self.export_size.width) as u32,
-            (self.export_size.height) as u32,
-        )
-        .to_image();
+        // let mut img = image::imageops::crop(
+        //     &mut img,
+        //     (self.export_rect.x) as u32,
+        //     (self.export_rect.y) as u32,
+        //     (self.export_rect.width) as u32,
+        //     (self.export_rect.height) as u32,
+        // )
+        // .to_image();
 
         // draw room outline on borders
         draw_hollow_rect_mut(
@@ -661,7 +737,8 @@ impl Room {
         }
 
         // make room folder
-        let path = path.join(&self.room_id);
+        let room_hex = format!("{:X}", self.room_id);
+        let path = path.join(&room_hex);
         if !path.exists() {
             std::fs::create_dir(path).unwrap();
         }
@@ -724,7 +801,7 @@ impl Room {
                 }
 
                 let pos = self.cells[breakable_index].get_canvas_pos();
-                let pos = (pos.0 - self.export_size.x, pos.1 - self.export_size.x);
+                // let pos = (pos.0 - self.export_rect.x, pos.1 - self.export_rect.y);
                 let breakable_mask = self.cells[breakable_index].get_breakable_mask();
                 let breakable_by_type = self.cells[breakable_index].export_breakable_by_type();
 
@@ -753,6 +830,60 @@ impl Room {
                 )
             });
         }
+    }
+
+    pub fn save_doors(&self) {
+        let room_width = self.get_room_width_tiles() as usize;
+        let room_height = self.get_room_height_tiles() as usize;
+
+        // spawn_door(xpos, ypos, dir, hatch, troom, targetpos, door_id = -1, angle = 0;)
+        let doors_indexes = self
+            .cells
+            .iter()
+            .enumerate()
+            .filter(|(_, cell)| cell.block_type == BlockType::Door)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+
+        // let mut disjointed_set = DisjointedSet::new(self.cells.len());
+        // let mut doors_rects: Vec<GrowingRect> = Vec::with_capacity(self.cells.len());
+        // let mut p = 0;
+        // doors_rects.resize_with(self.cells.len(), || {
+        //     p += 1;
+        //     GrowingRect::with_cell(&self.cells[p - 1])
+        // });
+
+        // doors_indexes.iter().for_each(|&i| {
+        //     if disjointed_set.find(i) != i {
+        //         return;
+        //     }
+
+        //     let neighbors = get_4neighbors(i, room_width, room_height);
+        //     let nb_doors = neighbors.get_neighbors_of_type(&self.cells, BlockType::Door);
+
+        //     nb_doors.iter().for_each(|&nb_index| {
+        //         if disjointed_set.find(i) == disjointed_set.find(nb_index) {
+        //             return;
+        //         }
+
+        //         // union is determined as cell1 as parent of cell2
+        //         // cell1 should be the one with lowest index (because we want always top left)
+        //         disjointed_set.union(i, nb_index);
+        //         let merged = doors_rects[i].merge(&doors_rects[nb_index]);
+        //         //println!("{:?}", merged);
+        //         doors_rects[i] = merged;
+        //         //println!("{:?}", doors_rects[nb_index]);
+        //     })
+        // });
+
+        println!("room index: {}", self.room_id);
+
+        // doors_indexes
+        //     .iter()
+        //     .filter(|&i| disjointed_set.find(*i) == *i)
+        //     .for_each(|&i| {
+        //         println!("{:?}", doors_rects[i]);
+        //     })
     }
 }
 
@@ -784,6 +915,35 @@ impl CellNeighbors {
         }
 
         has_block
+    }
+
+    fn get_neighbors_of_type(&self, cells: &[Cell], block_type: BlockType) -> Vec<usize> {
+        let mut neighbors = Vec::new();
+
+        if let Some(left_index) = self.left {
+            if cells[left_index].block_type == block_type {
+                neighbors.push(left_index);
+            }
+        }
+
+        if let Some(right_index) = self.right {
+            if cells[right_index].block_type == block_type {
+                neighbors.push(right_index);
+            }
+        }
+        if let Some(up_index) = self.up {
+            if cells[up_index].block_type == block_type {
+                neighbors.push(up_index);
+            }
+        }
+
+        if let Some(down_index) = self.down {
+            if cells[down_index].block_type == block_type {
+                neighbors.push(down_index);
+            }
+        }
+
+        neighbors
     }
 }
 

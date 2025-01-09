@@ -104,6 +104,8 @@ impl From<SlopeType> for Polygon {
         let points = match slope_type {
             SlopeType::HalfSolidH => SLOPE_HALF_SOLIDH.to_vec(),
             SlopeType::HalfSolidV => SLOPE_HALF_SOLIDV.to_vec(),
+            SlopeType::QuarterSolid => SLOPE_QUARTER_SOLID.to_vec(),
+            SlopeType::QuarterAir => SLOPE_QUARTER_AIR.to_vec(),
             SlopeType::SmallTriangle => SLOPE_SMALL_TRIANGLE.to_vec(),
             SlopeType::BigTriangle => SLOPE_BIG_TRIANGLE.to_vec(),
             SlopeType::ConcaveTriangle => SLOPE_CONCAVE_TRIANGLE.to_vec(),

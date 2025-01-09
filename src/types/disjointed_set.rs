@@ -6,15 +6,49 @@ pub struct Parent {
     pub vector: usize,
 }
 
+pub struct DisjointedSet {
+    parent: Vec<usize>,
+}
+
+impl DisjointedSet {
+    pub fn new(size: usize) -> Self {
+        let mut parent = Vec::with_capacity(size);
+
+        for i in 0..size {
+            parent.push(i);
+        }
+
+        DisjointedSet { parent }
+    }
+
+    pub fn find(&mut self, cell: usize) -> usize {
+        if self.parent[cell] == cell {
+            return cell;
+        }
+
+        let parent = self.find(self.parent[cell]);
+        self.parent[cell] = parent;
+        parent
+    }
+
+    pub fn union(&mut self, cell1: usize, cell2: usize) -> usize {
+        let parent1 = self.find(cell1);
+        let parent2 = self.find(cell2);
+
+        self.parent[parent2] = parent1;
+        parent1
+    }
+}
+
 //This disjointed set works with two layers, effectively two disjointed sets in one,
 // however those two disjointed sets communicate with each other, to achieve this we use an array
 // that index both sets and this lets cells be parents of vector in another set
-pub struct DisjointedSet {
+pub struct VectorDisjointedSet {
     parent: Vec<[Parent; 2]>,
     rank: Vec<[usize; 2]>,
 }
 
-impl DisjointedSet {
+impl VectorDisjointedSet {
     pub fn new(size: usize) -> Self {
         let mut parent = Vec::with_capacity(size);
         let mut rank = Vec::with_capacity(size);
@@ -33,7 +67,7 @@ impl DisjointedSet {
             rank.push([0, 0]);
         }
 
-        DisjointedSet { parent, rank }
+        VectorDisjointedSet { parent, rank }
     }
 
     pub fn exists(&self, cell: usize, vector: usize) -> bool {

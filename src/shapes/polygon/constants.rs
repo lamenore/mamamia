@@ -40,6 +40,52 @@ pub const SLOPE_HALF_SOLIDV: [Point<i32>; 4] = [
     },
 ];
 
+pub const SLOPE_QUARTER_SOLID: [Point<i32>; 4] = [
+    Point {
+        x: CELL_SIZE as i32 / 2,
+        y: CELL_SIZE as i32 / 2,
+    },
+    Point {
+        x: CELL_SIZE as i32 - 1,
+        y: CELL_SIZE as i32 / 2,
+    },
+    Point {
+        x: CELL_SIZE as i32 - 1,
+        y: CELL_SIZE as i32 - 1,
+    },
+    Point {
+        x: CELL_SIZE as i32 / 2,
+        y: CELL_SIZE as i32 - 1,
+    },
+];
+
+pub const SLOPE_QUARTER_AIR: [Point<i32>; 6] = [
+    Point {
+        x: CELL_SIZE as i32 / 2,
+        y: 0,
+    },
+    Point {
+        x: CELL_SIZE as i32 - 1,
+        y: 0,
+    },
+    Point {
+        x: CELL_SIZE as i32 - 1,
+        y: CELL_SIZE as i32 - 1,
+    },
+    Point {
+        x: 0,
+        y: CELL_SIZE as i32 - 1,
+    },
+    Point {
+        x: 0,
+        y: CELL_SIZE as i32 / 2,
+    },
+    Point {
+        x: CELL_SIZE as i32 / 2,
+        y: CELL_SIZE as i32 / 2,
+    },
+];
+
 pub const SLOPE_SMALL_TRIANGLE: [Point<i32>; 3] = [
     Point {
         x: 0,

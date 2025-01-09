@@ -3,7 +3,6 @@ use num_enum::FromPrimitive;
 use crate::{
     constants::{BTS_BREAKABLE_MASK_MASK, BTS_SLOPE_FLIP_MASK, BTS_SLOPE_TYPE_MASK, CELL_SIZE},
     shapes::vector::Vector,
-    types::Flip,
 };
 
 #[derive(Debug, PartialEq, Copy, Clone, FromPrimitive)]
@@ -34,7 +33,7 @@ pub enum SlopeType {
     HalfSolidH = 0x0,
     HalfSolidV,
     QuarterSolid,
-    StairBigSteps,
+    QuarterAir,
     FullSolidUnused,
     SmallTriangle,
     BigTriangle,
@@ -95,6 +94,26 @@ impl BlockMask {
             BlockMask::TwoByOne => 1,
             BlockMask::OneByTwo => 2,
             BlockMask::TwoByTwo => 0,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum Flip {
+    None = 0x0,
+    Horizontal,
+    Vertical,
+    Both,
+}
+
+impl From<u8> for Flip {
+    fn from(value: u8) -> Self {
+        match value {
+            0x0 => Flip::None,
+            0x1 => Flip::Horizontal,
+            0x2 => Flip::Vertical,
+            0x3 => Flip::Both,
+            _ => Flip::None,
         }
     }
 }
