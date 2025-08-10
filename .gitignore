@@ -1,11 +1,10 @@
 /target
 /output/*
 /bins/*
+/rom
 /output_indexed/*
 .vscode/
 
 rooms.csv
 convert-to-indexed.bat
 Cargo.lock
-rom/rom.bin
-rom/mdb.txt
