@@ -1,4 +1,4 @@
-use imageproc::point::Point;
+use super::point::Point;
 pub mod constants;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

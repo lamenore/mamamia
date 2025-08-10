@@ -1,6 +1,4 @@
-use imageproc::point::Point;
-
-use crate::constants::CELL_SIZE;
+use crate::{constants::CELL_SIZE, shapes::point::Point};
 
 pub const SLOPE_HALF_SOLIDH: [Point<i32>; 4] = [
     Point {

@@ -1,8 +1,7 @@
+use crate::shapes::point::Point;
 use crate::types::cell::SlopeType;
 
 use crate::constants::CELL_SIZE;
-
-use imageproc::point::Point;
 
 use super::Vector;
 

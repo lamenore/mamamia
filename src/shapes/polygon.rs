@@ -3,7 +3,7 @@ pub mod constants;
 use crate::shapes::polygon::constants::*;
 use crate::{constants::CELL_SIZE, types::cell::SlopeType};
 
-use imageproc::point::Point;
+use super::point::Point;
 
 pub struct Polygon {
     pub points: Vec<Point<i32>>,
