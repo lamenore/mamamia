@@ -1,7 +1,10 @@
 pub mod constants;
 
-use crate::shapes::polygon::constants::*;
-use crate::{constants::CELL_SIZE, types::cell::SlopeType};
+use super::polygon::constants::*;
+use crate::{
+    constants::CELL_SIZE,
+    types::cell::{Flip, SlopeType},
+};
 
 use super::point::Point;
 
@@ -96,6 +99,19 @@ impl Polygon {
             point.x += x as i32;
             point.y += y as i32;
         }
+    }
+
+    pub fn flip(&mut self, slope_flip: crate::types::cell::Flip) -> &mut Self {
+        match slope_flip {
+            Flip::None => {}
+            Flip::Horizontal => self.mirror_x(),
+            Flip::Vertical => self.mirror_y(),
+            Flip::Both => {
+                self.mirror_x();
+                self.mirror_y();
+            }
+        }
+        self
     }
 }
 
