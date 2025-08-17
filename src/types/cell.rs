@@ -1,8 +1,14 @@
+use image::{Rgba, RgbaImage};
+use imageproc::{
+    drawing::{draw_filled_rect_mut, draw_line_segment_mut, draw_polygon_mut},
+    rect::Rect,
+};
 use num_enum::FromPrimitive;
 
 use crate::{
     constants::{BTS_BREAKABLE_MASK_MASK, BTS_SLOPE_FLIP_MASK, BTS_SLOPE_TYPE_MASK, CELL_SIZE},
-    shapes::vector::Vector,
+    shapes::polygon::Polygon,
+    traits::Draw,
 };
 
 #[derive(Debug, PartialEq, Copy, Clone, FromPrimitive)]
@@ -129,7 +135,7 @@ pub struct Cell {
     pub palette: u8,
     pub unk: u8,
     pub bts: u8,
-    pub slope_vectors: Vec<Vector>,
+    pub extra: u8,
 }
 
 impl Cell {
@@ -144,7 +150,7 @@ impl Cell {
             palette: 0,
             unk: 0,
             bts: 0,
-            slope_vectors: Vec::new(),
+            extra: 0,
         }
     }
 
@@ -222,6 +228,84 @@ impl Cell {
                 }
             }
             _ => 0,
+        }
+    }
+impl Draw for Cell {
+    fn draw_to_img(&self, img: &mut RgbaImage) {
+        let color = match self.treat_as_slope {
+            TreatAsSlopeType::Solid => Rgba([0, 255, 0, 255]),
+            TreatAsSlopeType::SlopeLeft => Rgba([255, 255, 0, 255]),
+            TreatAsSlopeType::SlopeRight => Rgba([255, 0, 255, 255]),
+            TreatAsSlopeType::SlopeProtectNegX => Rgba([255, 255, 0, 255]),
+            TreatAsSlopeType::SlopeProtectPosX => Rgba([255, 0, 255, 255]),
+        };
+
+        match self.block_type {
+            BlockType::Slope => {
+                let slope_type = self.get_slope_type();
+                let slope_flip = self.get_slope_flip();
+
+                let mut shape = Polygon::from(slope_type);
+                shape.flip(slope_flip);
+
+                // add the shape into position
+                shape.translate(
+                    self.x as f32 * CELL_SIZE as f32,
+                    self.y as f32 * CELL_SIZE as f32,
+                );
+
+                let points = shape
+                    .points
+                    .iter()
+                    .map(|p| imageproc::point::Point::new(p.x, p.y))
+                    .collect::<Vec<imageproc::point::Point<i32>>>();
+
+                draw_polygon_mut(img, &points, color);
+            }
+            BlockType::Solid => match self.treat_as_slope {
+                TreatAsSlopeType::Solid
+                | TreatAsSlopeType::SlopeRight
+                | TreatAsSlopeType::SlopeLeft => {
+                    draw_filled_rect_mut(
+                        img,
+                        Rect::at((self.x * CELL_SIZE).into(), (self.y * CELL_SIZE).into())
+                            .of_size(CELL_SIZE.into(), CELL_SIZE.into()),
+                        color,
+                    );
+                }
+                TreatAsSlopeType::SlopeProtectNegX => {
+                    draw_filled_rect_mut(
+                        img,
+                        Rect::at((self.x * CELL_SIZE).into(), (self.y * CELL_SIZE).into())
+                            .of_size(CELL_SIZE.into(), CELL_SIZE.into()),
+                        color,
+                    );
+                    let start = ((self.x * CELL_SIZE).into(), (self.y * CELL_SIZE).into());
+                    let end = (
+                        (self.x * CELL_SIZE).into(),
+                        (self.y * CELL_SIZE + CELL_SIZE - 1).into(),
+                    );
+                    draw_line_segment_mut(img, start, end, Rgba([0, 255, 0, 255]));
+                }
+                TreatAsSlopeType::SlopeProtectPosX => {
+                    draw_filled_rect_mut(
+                        img,
+                        Rect::at((self.x * CELL_SIZE).into(), (self.y * CELL_SIZE).into())
+                            .of_size(CELL_SIZE.into(), CELL_SIZE.into()),
+                        color,
+                    );
+                    let start = (
+                        (self.x * CELL_SIZE + CELL_SIZE - 1).into(),
+                        (self.y * CELL_SIZE).into(),
+                    );
+                    let end = (
+                        (self.x * CELL_SIZE + CELL_SIZE - 1).into(),
+                        (self.y * CELL_SIZE + CELL_SIZE - 1).into(),
+                    );
+                    draw_line_segment_mut(img, start, end, Rgba([0, 255, 0, 255]));
+                }
+            },
+            _ => {}
         }
     }
 }

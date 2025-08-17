@@ -1,21 +1,18 @@
 use std::{fs::File, io::Write, path};
 
 use image::{ImageError, Rgba};
-use imageproc::{
-    drawing::{
-        draw_filled_rect_mut, draw_hollow_rect_mut, draw_line_segment_mut, draw_polygon_mut,
-    },
-    rect::Rect,
-};
+use imageproc::{drawing::draw_hollow_rect_mut, rect::Rect};
 use num_enum::FromPrimitive;
 
 use crate::{
     constants::{CELL_SIZE, TILE_SIZE},
-    shapes::{polygon::Polygon, vector::constants::SlopeVectors},
+    shapes::{
+        point::Point,
+        vector::{Vector, constants::SlopeVectors},
+    },
+    traits::Draw,
     types::{
-        cell::Flip,
-        cell::{BlockType, Cell, SlopeType, TreatAsSlopeType},
-        disjointed_set::DisjointedSet,
+        cell::{BlockType, Cell, Flip, SlopeType, TreatAsSlopeType},
         disjointed_set::VectorDisjointedSet,
     },
 };
@@ -568,7 +565,7 @@ impl Room {
             });
         }
     }
-    pub fn save_image(&self) -> Result<(), ImageError> {
+    pub(crate) fn save_image(&self) -> Result<(), ImageError> {
         // make a new image that is the size of the room
         let room_width = self.get_width_cells() as usize;
         let room_height = self.get_height_cells() as usize;
@@ -585,105 +582,29 @@ impl Room {
                 cell.block_type == BlockType::Solid || (cell.block_type == BlockType::Slope)
             })
             .for_each(|cell| {
-                let color = match cell.treat_as_slope {
-                    TreatAsSlopeType::Solid => Rgba([0, 255, 0, 255]),
-                    TreatAsSlopeType::SlopeLeft => Rgba([255, 255, 0, 255]),
-                    TreatAsSlopeType::SlopeRight => Rgba([255, 0, 255, 255]),
-                    TreatAsSlopeType::SlopeProtectNegX => Rgba([255, 255, 0, 255]),
-                    TreatAsSlopeType::SlopeProtectPosX => Rgba([255, 0, 255, 255]),
-                };
-
-                match cell.block_type {
-                    BlockType::Slope => {
-                        let slope_type = cell.get_slope_type();
-                        let slope_flip = cell.get_slope_flip();
-
-                        let mut shape = Polygon::from(slope_type);
-
-                        match slope_flip {
-                            Flip::None => {}
-                            Flip::Horizontal => {
-                                shape.mirror_x();
-                            }
-                            Flip::Vertical => {
-                                shape.mirror_y();
-                            }
-                            Flip::Both => {
-                                shape.mirror_x();
-                                shape.mirror_y();
-                            }
-                        }
-
-                        // add the shape into position
-                        shape.translate(
-                            cell.x as f32 * CELL_SIZE as f32,
-                            cell.y as f32 * CELL_SIZE as f32,
-                        );
-
-                        draw_polygon_mut(&mut img, &shape.points, color);
-                    }
-                    BlockType::Solid => match cell.treat_as_slope {
-                        TreatAsSlopeType::Solid
-                        | TreatAsSlopeType::SlopeRight
-                        | TreatAsSlopeType::SlopeLeft => {
-                            draw_filled_rect_mut(
-                                &mut img,
-                                Rect::at((cell.x * CELL_SIZE).into(), (cell.y * CELL_SIZE).into())
-                                    .of_size(CELL_SIZE.into(), CELL_SIZE.into()),
-                                color,
-                            );
-                        }
-                        TreatAsSlopeType::SlopeProtectNegX => {
-                            draw_filled_rect_mut(
-                                &mut img,
-                                Rect::at((cell.x * CELL_SIZE).into(), (cell.y * CELL_SIZE).into())
-                                    .of_size(CELL_SIZE.into(), CELL_SIZE.into()),
-                                color,
-                            );
-                            let start = ((cell.x * CELL_SIZE).into(), (cell.y * CELL_SIZE).into());
-                            let end = (
-                                (cell.x * CELL_SIZE).into(),
-                                (cell.y * CELL_SIZE + CELL_SIZE - 1).into(),
-                            );
-                            draw_line_segment_mut(&mut img, start, end, Rgba([0, 255, 0, 255]));
-                        }
-                        TreatAsSlopeType::SlopeProtectPosX => {
-                            draw_filled_rect_mut(
-                                &mut img,
-                                Rect::at((cell.x * CELL_SIZE).into(), (cell.y * CELL_SIZE).into())
-                                    .of_size(CELL_SIZE.into(), CELL_SIZE.into()),
-                                color,
-                            );
-                            let start = (
-                                (cell.x * CELL_SIZE + CELL_SIZE - 1).into(),
-                                (cell.y * CELL_SIZE).into(),
-                            );
-                            let end = (
-                                (cell.x * CELL_SIZE + CELL_SIZE - 1).into(),
-                                (cell.y * CELL_SIZE + CELL_SIZE - 1).into(),
-                            );
-                            draw_line_segment_mut(&mut img, start, end, Rgba([0, 255, 0, 255]));
-                        }
-                    },
-                    _ => {}
-                }
+                // draw the cell
+                cell.draw_to_img(&mut img);
             });
 
-        // remove every yellow and magenta pixel which has one transparent horizontal neighboring pixel, repeat 10 times
+        // remove every yellow and magenta pixel which has one transparent horizontal neighboring pixel
+        // repeat 10 times because I don't know a better way to do it
         for _ in 0..10 {
             let img_copy = img.clone();
             for y in 0..img.height() {
                 for x in 0..img.width() {
                     if x == 0 || x == 16 * room_width as u32 - 1 {
+                        // ignore the first and last columns
                         continue;
                     }
                     if y == 0 || y == 16 * room_height as u32 - 1 {
+                        // ignore the first and last rows
                         continue;
                     }
 
                     let pixel = img_copy.get_pixel(x, y);
 
                     if pixel.0 == [0, 255, 0, 255] {
+                        // ignore yellow pixels
                         continue;
                     }
 
@@ -695,6 +616,7 @@ impl Room {
                     if (pixel.0 != left_pixel.0 || pixel.0 != right_pixel.0)
                         && (left_pixel.0 != [0, 255, 0, 255] || right_pixel.0 != [0, 255, 0, 255])
                     {
+                        // if the pixel is not yellow and has a yellow or magenta neighbor, remove it
                         if up_pixel[3] == 0 && down_pixel.0 == [0, 255, 0, 255] {
                             img.put_pixel(x, y, Rgba([0, 0, 0, 0]));
                         }
@@ -704,6 +626,7 @@ impl Room {
                         }
                     }
 
+                    // if the pixel has a transparent neighbor, remove it
                     if left_pixel[3] == 0 || right_pixel[3] == 0 {
                         img.put_pixel(x, y, Rgba([0, 0, 0, 0]));
                     }
@@ -711,39 +634,28 @@ impl Room {
             }
         }
 
-        // crop the image to the correct export size
-        // let mut img = image::imageops::crop(
-        //     &mut img,
-        //     (self.export_rect.x) as u32,
-        //     (self.export_rect.y) as u32,
-        //     (self.export_rect.width) as u32,
-        //     (self.export_rect.height) as u32,
-        // )
-        // .to_image();
-
-        // draw room outline on borders
+        // draw the room outline
         draw_hollow_rect_mut(
             &mut img,
             Rect::at(0, 0).of_size(16 * room_width as u32, 16 * room_height as u32),
             Rgba([0, 255, 0, 255]),
         );
 
-        // check if the folder exists
+        // make the room folder if it doesn't exist
         let path = std::path::Path::new("./output");
         if !path.exists() {
             std::fs::create_dir(path).unwrap();
         }
 
-        // make room folder
         let room_hex = format!("{:X}", self.room_id);
         let path = path.join(&room_hex);
         if !path.exists() {
             std::fs::create_dir(path).unwrap();
         }
 
-        // save image
+        // save the image
         img.save(format!(
-            "./output/{}/{}_col.png",
+            "./output/{:X}/{:X}_col.png",
             self.room_id, self.room_id
         ))?;
 
