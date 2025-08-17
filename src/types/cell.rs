@@ -230,6 +230,12 @@ impl Cell {
             _ => 0,
         }
     }
+
+    pub fn is_blue_door_cap(&self) -> bool {
+        self.block_type == BlockType::Shot && self.bts >= 0x40 && self.bts < 0x45
+    }
+}
+
 impl Draw for Cell {
     fn draw_to_img(&self, img: &mut RgbaImage) {
         let color = match self.treat_as_slope {
