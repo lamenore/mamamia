@@ -128,8 +128,8 @@ impl Room {
         let mut room = Room::new_from_bytes(room_id, header);
 
         // get room width and height
-        let room_width = room.get_room_width_tiles();
-        let room_height = room.get_room_height_tiles();
+        let room_width = room.get_width_cells();
+        let room_height = room.get_height_cells();
 
         // [header][room_data][room_type_data][room_bts_data][unk_data]
         let raw_data = &bytes[0x0F..];
@@ -231,8 +231,8 @@ impl Room {
     }
 
     pub fn crop_room_export_size(&mut self) {
-        let room_width = self.get_room_width_tiles();
-        let room_height = self.get_room_height_tiles();
+        let room_width = self.get_width_cells();
+        let room_height = self.get_height_cells();
 
         let mut row_start = 0;
         // increase row_start if entire rows of cells that are only solid, top first
@@ -302,17 +302,17 @@ impl Room {
         self.export_rect.update(x, y, width, height);
     }
 
-    pub fn get_room_width_tiles(&self) -> u16 {
-        (self.room_width * TILE_SIZE as u8).into()
+    pub fn get_width_cells(&self) -> u16 {
+        (self.room_width * TILE_SIZE as u8) as u16
     }
 
-    pub fn get_room_height_tiles(&self) -> u16 {
-        (self.room_height * TILE_SIZE as u8).into()
+    pub fn get_height_cells(&self) -> u16 {
+        (self.room_height * TILE_SIZE as u8) as u16
     }
 
     fn set_treat_slope(&mut self) {
-        let room_width = self.get_room_width_tiles() as usize;
-        let room_height = self.get_room_height_tiles() as usize;
+        let room_width = self.get_width_cells() as usize;
+        let room_height = self.get_height_cells() as usize;
 
         for i in 0..(room_width * room_height) {
             if self.cells[i].block_type != BlockType::Slope
@@ -394,11 +394,11 @@ impl Room {
         }
     }
 
-    pub fn save_slopes(&mut self) {
-        let room_width = self.get_room_width_tiles() as usize;
-        let room_height = self.get_room_height_tiles() as usize;
+    pub fn save_slopes(&self) -> Result<(), anyhow::Error> {
+        let room_width = self.get_width_cells() as usize;
+        let room_height = self.get_height_cells() as usize;
 
-        let mut disjointed_set = VectorDisjointedSet::new(room_width * room_height);
+        let mut disjointed_set = VectorDisjointedSet::new(self.cells.len());
         let mut has_apparent_slope: bool = false;
 
         for cell_i in 0..self.cells.len() {
@@ -569,21 +569,19 @@ impl Room {
         }
     }
     pub fn save_image(&self) -> Result<(), ImageError> {
-        let room_width = self.get_room_width_tiles() as usize;
-        let room_height = self.get_room_height_tiles() as usize;
-
-        // let img_width = col_end - col_start;
-        // let img_height = row_end - row_start;
-
-        let mut img = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::new(
+        // make a new image that is the size of the room
+        let room_width = self.get_width_cells() as usize;
+        let room_height = self.get_height_cells() as usize;
+        let mut img = image::RgbaImage::new(
             (room_width * CELL_SIZE as usize) as u32,
             (room_height * CELL_SIZE as usize) as u32,
         );
 
-        // draw the rest of the cells
+        // draw the solid and slope cells
         self.cells
             .iter()
             .filter(|cell| {
+                // draw solid and slope cells
                 cell.block_type == BlockType::Solid || (cell.block_type == BlockType::Slope)
             })
             .for_each(|cell| {
@@ -753,8 +751,8 @@ impl Room {
     }
 
     pub fn save_breakables(&self) {
-        let room_width = self.get_room_width_tiles() as usize;
-        let room_height = self.get_room_height_tiles() as usize;
+        let room_width = self.get_width_cells() as usize;
+        let room_height = self.get_height_cells() as usize;
 
         let breakables = self
             .cells
@@ -833,8 +831,8 @@ impl Room {
     }
 
     pub fn save_doors(&self) {
-        let room_width = self.get_room_width_tiles() as usize;
-        let room_height = self.get_room_height_tiles() as usize;
+        let room_width = self.get_width_cells() as usize;
+        let room_height = self.get_height_cells() as usize;
 
         // spawn_door(xpos, ypos, dir, hatch, troom, targetpos, door_id = -1, angle = 0;)
         let doors_indexes = self
