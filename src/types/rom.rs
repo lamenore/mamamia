@@ -120,3 +120,5 @@ impl DoorHeader {
         (self.bitflag & 0x40) != 0
     }
 }
+
+pub(crate) struct RoomEvent(u16);

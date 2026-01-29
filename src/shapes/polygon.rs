@@ -1,4 +1,4 @@
-pub mod constants;
+pub(crate) mod constants;
 
 use super::polygon::constants::*;
 use crate::{
@@ -8,42 +8,43 @@ use crate::{
 
 use super::point::Point;
 
-pub struct Polygon {
-    pub points: Vec<Point<i32>>,
+pub(crate) struct Polygon {
+    pub(crate) points: Vec<Point<i32>>,
 }
 
+#[allow(dead_code)]
 impl Polygon {
-    pub fn new(points: Vec<Point<i32>>) -> Polygon {
+    pub(crate) fn new(points: Vec<Point<i32>>) -> Polygon {
         Polygon { points }
     }
 
-    pub fn mirror_x(&mut self) {
+    pub(crate) fn mirror_x(&mut self) {
         for point in &mut self.points {
             point.x = (-point.x) + CELL_SIZE as i32 - 1;
         }
     }
 
-    pub fn mirror_y(&mut self) {
+    pub(crate) fn mirror_y(&mut self) {
         for point in &mut self.points {
             point.y = (-point.y) + CELL_SIZE as i32 - 1;
         }
     }
 
-    pub fn clamp(&mut self) {
+    pub(crate) fn clamp(&mut self) {
         for point in &mut self.points {
             point.x = point.x.clamp(0, CELL_SIZE as i32 - 1);
             point.y = point.y.clamp(0, CELL_SIZE as i32 - 1);
         }
     }
 
-    pub fn shift(&mut self, x: i32, y: i32) {
+    pub(crate) fn shift(&mut self, x: i32, y: i32) {
         for point in &mut self.points {
             point.x += x;
             point.y += y;
         }
     }
 
-    pub fn symmetrize(&mut self) {
+    pub(crate) fn symmetrize(&mut self) {
         // first insert points into self.points where the edge
         // of the polygon crosses the y-axis center line
         for i in 0..self.points.len() {
@@ -88,20 +89,20 @@ impl Polygon {
         }
     }
 
-    pub fn symplify(&mut self) {
+    pub(crate) fn symplify(&mut self) {
         // check if a point already exists
         // check if a point is on the same line as the previous and next point
         // if so, remove the point
     }
 
-    pub fn translate(&mut self, x: f32, y: f32) {
+    pub(crate) fn translate(&mut self, x: f32, y: f32) {
         for point in &mut self.points {
             point.x += x as i32;
             point.y += y as i32;
         }
     }
 
-    pub fn flip(&mut self, slope_flip: crate::types::cell::Flip) -> &mut Self {
+    pub(crate) fn flip(&mut self, slope_flip: crate::types::cell::Flip) -> &mut Self {
         match slope_flip {
             Flip::None => {}
             Flip::Horizontal => self.mirror_x(),

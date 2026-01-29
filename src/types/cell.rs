@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug, PartialEq, Copy, Clone, FromPrimitive)]
 #[repr(u8)]
-pub enum BlockType {
+pub(crate) enum BlockType {
     #[default]
     Air = 0x0,
     Slope,
@@ -35,7 +35,7 @@ pub enum BlockType {
 
 #[derive(Debug, PartialEq, Copy, Clone, FromPrimitive)]
 #[repr(u8)]
-pub enum SlopeType {
+pub(crate) enum SlopeType {
     HalfSolidH = 0x0,
     HalfSolidV,
     QuarterSolid,
@@ -74,7 +74,7 @@ pub enum SlopeType {
 
 #[derive(Debug, PartialEq, Copy, Clone, FromPrimitive)]
 #[repr(u8)]
-pub enum TreatAsSlopeType {
+pub(crate) enum TreatAsSlopeType {
     #[default]
     Solid = 0x0,
     SlopeRight,
@@ -85,7 +85,7 @@ pub enum TreatAsSlopeType {
 
 #[derive(Debug, PartialEq, Copy, Clone, FromPrimitive)]
 #[repr(u8)]
-pub enum BlockMask {
+pub(crate) enum BlockMask {
     #[default]
     OneByOne = 0,
     TwoByOne,
@@ -94,7 +94,7 @@ pub enum BlockMask {
 }
 
 impl BlockMask {
-    pub fn export(&self) -> u16 {
+    pub(crate) fn export(&self) -> u16 {
         match self {
             BlockMask::OneByOne => 3,
             BlockMask::TwoByOne => 1,
@@ -105,7 +105,7 @@ impl BlockMask {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Flip {
+pub(crate) enum Flip {
     None = 0x0,
     Horizontal,
     Vertical,
@@ -125,21 +125,21 @@ impl From<u8> for Flip {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Cell {
-    pub x: u16,
-    pub y: u16,
-    pub treat_as_slope: TreatAsSlopeType,
-    pub block_type: BlockType,
-    pub flip: Flip,
-    pub sprite: u8,
-    pub palette: u8,
-    pub unk: u8,
-    pub bts: u8,
-    pub extra: u8,
+pub(crate) struct Cell {
+    pub(crate) x: u16,
+    pub(crate) y: u16,
+    pub(crate) treat_as_slope: TreatAsSlopeType,
+    pub(crate) block_type: BlockType,
+    pub(crate) flip: Flip,
+    pub(crate) sprite: u8,
+    pub(crate) palette: u8,
+    pub(crate) unk: u8,
+    pub(crate) bts: u8,
+    pub(crate) extra: u8,
 }
 
 impl Cell {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Cell {
             x: 0,
             y: 0,
@@ -154,11 +154,11 @@ impl Cell {
         }
     }
 
-    pub fn get_canvas_pos(&self) -> (u16, u16) {
+    pub(crate) fn get_canvas_pos(&self) -> (u16, u16) {
         (self.x * CELL_SIZE, self.y * CELL_SIZE)
     }
 
-    pub fn get_slope_flip(&self) -> Flip {
+    pub(crate) fn get_slope_flip(&self) -> Flip {
         match (self.bts & BTS_SLOPE_FLIP_MASK) >> 6 {
             0x0 => Flip::None,
             0x1 => Flip::Horizontal,
@@ -169,18 +169,18 @@ impl Cell {
     }
 
     #[inline(always)]
-    pub fn get_slope_type(&self) -> SlopeType {
+    pub(crate) fn get_slope_type(&self) -> SlopeType {
         (self.bts & BTS_SLOPE_TYPE_MASK).into()
     }
 
-    pub fn is_square(&self) -> bool {
+    pub(crate) fn is_square(&self) -> bool {
         let slope_type = self.get_slope_type();
         self.block_type == BlockType::Solid
             || (self.block_type == BlockType::Slope
                 && (slope_type == SlopeType::Square || slope_type == SlopeType::SquareDuplicate1))
     }
 
-    pub fn get_breakable_mask(&self) -> BlockMask {
+    pub(crate) fn get_breakable_mask(&self) -> BlockMask {
         let mask = match self.bts & BTS_BREAKABLE_MASK_MASK {
             0x0 => BlockMask::OneByOne,
             0x1 => BlockMask::TwoByOne,
@@ -207,7 +207,7 @@ impl Cell {
         }
     }
 
-    pub fn export_breakable_by_type(&self) -> u8 {
+    pub(crate) fn export_breakable_by_type(&self) -> u8 {
         match self.block_type {
             BlockType::Bomb => 1,
             BlockType::AirBomb => 1,
@@ -231,7 +231,7 @@ impl Cell {
         }
     }
 
-    pub fn is_blue_door_cap(&self) -> bool {
+    pub(crate) fn is_blue_door_cap(&self) -> bool {
         self.block_type == BlockType::Shot && self.bts >= 0x40 && self.bts < 0x45
     }
 }
